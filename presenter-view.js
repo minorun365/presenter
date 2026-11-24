@@ -137,6 +137,37 @@ body[data-bespoke-view=overview]:has(#pv-ov.pv-framed) .bespoke-marp-parent{padd
       };
       svg.addEventListener('dblclick', () => { location.href = pageUrl('presenter', i + 1); });
     });
+    /* 各ページの番号を、スライドの外（升の左上の行間）に小さく出す。スライド右下のページ番号は3列の升では
+       小さすぎて読めず、「◯枚目を直して」と伝えるときに数えることになるため。スライドの上に重ねると見出しが
+       隠れるので外に置く。svg には擬似要素を付けられないので、一覧の格子へ絶対配置の札を足し、升の位置が
+       変わるたびに置き直す */
+    const grid = document.querySelector('.bespoke-marp-parent');
+    const slides = [...grid.querySelectorAll(':scope > svg.bespoke-marp-slide')];
+    const nst = document.createElement('style');
+    nst.textContent = `
+body[data-bespoke-view=overview] .bespoke-marp-parent{position:relative;row-gap:46px}
+@media (max-width:900px){body[data-bespoke-view=overview] .bespoke-marp-parent{row-gap:42px}}
+.pv-num{position:absolute;z-index:2;pointer-events:none;transform:translate(2px,calc(-100% - 11px));font:800 13px/1 -apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;letter-spacing:.08em;font-variant-numeric:tabular-nums;color:#0891b2;background:linear-gradient(90deg,#0ea5e9,#06b6d4 50%,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}`;
+    document.head.appendChild(nst);
+    const tags = slides.map((_, i) => {
+      const t = document.createElement('div');
+      t.className = 'pv-num';
+      t.textContent = i + 1;
+      grid.appendChild(t);
+      return t;
+    });
+    const placeNums = () => {
+      const g = grid.getBoundingClientRect();
+      slides.forEach((svg, i) => {
+        const r = svg.getBoundingClientRect();
+        const s = tags[i].style;
+        s.left = `${r.left - g.left + grid.scrollLeft - grid.clientLeft}px`;
+        s.top = `${r.top - g.top + grid.scrollTop - grid.clientTop}px`;
+      });
+    };
+    placeNums();
+    new ResizeObserver(placeNums).observe(grid);
+    addEventListener('resize', placeNums);
     return;
   }
 
