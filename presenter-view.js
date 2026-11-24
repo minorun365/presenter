@@ -301,7 +301,9 @@ button.pv-nav.pv-next{grid-area:navn}
   style.textContent = css;
   document.head.appendChild(style);
   document.body.dataset.pv = '1';
-  if (document.querySelector('.bespoke-marp-note')) document.body.classList.add('pv-has-notes');
+  /* ノート欄は、いまのスライドにノートがあるときだけ出す（render で毎回判定）。デッキ単位で出すと、メモのコメントが
+     1枚にあるだけで全ページに空の欄が残り、スライドが小さくなる。Marp は指示以外の HTML コメントをすべてノートにする */
+  const hasNote = (i) => !!document.querySelector(`.bespoke-marp-note[data-index="${i}"]`)?.textContent.trim();
   // Marp 標準の「次のページ」は別の文書を丸ごと読み込む枠なので使わない（前後のページは、手元のスライドを写して見せる）
   document.querySelector('iframe.bespoke-marp-presenter-next')?.remove();
 
@@ -500,6 +502,10 @@ button.pv-nav.pv-next{grid-area:navn}
       p.label?.classList.toggle('cur', n === pk);
     });
     $('.pv-chapter').textContent = chapters[k].title;
+    if (document.body.classList.contains('pv-has-notes') !== hasNote(i)) {
+      document.body.classList.toggle('pv-has-notes', hasNote(i));
+      requestAnimationFrame(() => fit());
+    }
     drawStrip(i);
     $('.pv-needle').style.left = Math.min(100, (e / st.dur) * 100) + '%';
     $('.pv-needle').style.display = started ? '' : 'none';
