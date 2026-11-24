@@ -1,0 +1,4 @@
+*.present.html
+present-assets/
+__pycache__/
+.DS_Store
