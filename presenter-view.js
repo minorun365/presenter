@@ -304,7 +304,9 @@ body.pv-idle .pv-edit{display:flex}body.pv-idle .pv-count{display:none}
 .pv-needle::before{content:"";position:absolute;left:50%;top:-4px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--pv-ink)}
 body.pv-warn .pv-needle,body.pv-warn .pv-needle::before,body.pv-over .pv-needle,body.pv-over .pv-needle::before{background:var(--pv-state)}
 /* 前後のページ：左から（縦置きの案では上から）まえ … いま … つぎ。押すとそのページへ飛ぶ */
-#pv-strip{grid-area:strip;display:flex;justify-content:center;gap:14px;min-height:0;min-width:0;overflow:hidden}
+/* 横にあふれたぶんは隠すが、いまのページの青い枠（3px）と影は下へはみ出す。帯の下に逃げを足し、同じ量を下の余白へ
+   食い込ませて、サムネイルの大きさは変えない（逃げが無いと枠と影の下側が切れて見える） */
+#pv-strip{grid-area:strip;display:flex;justify-content:center;gap:14px;min-height:0;min-width:0;overflow:hidden;box-sizing:border-box;padding-bottom:16px;margin-bottom:-16px}
 .pv-th{all:unset;box-sizing:border-box;position:relative;height:100%;aspect-ratio:16 / 10.4;display:flex;flex-direction:column;gap:5px;cursor:pointer;min-width:0;flex:none}
 .pv-cap{font-size:12px;font-weight:600;color:var(--pv-mute);letter-spacing:.06em;line-height:1;height:14px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .pv-pic{flex:1;min-height:0;position:relative;border-radius:6px;overflow:hidden;background:#fff;box-shadow:0 1px 2px rgba(20,50,70,.10),0 6px 14px rgba(20,50,70,.10);display:block}
@@ -505,7 +507,8 @@ button.pv-nav.pv-next{grid-area:navn}
     container.style.setProperty('--pv-bw', bw + 'px');
     const byWidth = innerW - (bw * u + colGap * 2) * 2;
     container.style.setProperty('--pv-cw', Math.max(240, Math.round(Math.min(byHeight, byWidth))) + 'px');
-    const w = strip.clientWidth, h = strip.clientHeight;
+    const ss = getComputedStyle(strip);
+    const w = strip.clientWidth, h = strip.clientHeight - parseFloat(ss.paddingTop) - parseFloat(ss.paddingBottom);
     if (!w || !h) return;
     const tw = h * 16 / 10.4;
     const n = Math.max(3, Math.min(9, Math.floor((w + 14) / (tw + 14))));
