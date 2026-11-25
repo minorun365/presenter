@@ -32,7 +32,8 @@
        押すと全画面になり、キー入力は操作画面へ戻る。ページから「最初から全画面の窓」を開く手段は Chrome に無い
        （fullscreen popups は開発中止）ため、全画面にはその窓での1回のキー操作が要る。Chrome の設定で「自動全画面」を
        許可したサイトなら、キーを待たずに全画面になる
-     - ディスプレイが1枚・許可しなかった：投影画面を普通の別窓で開く
+     - ディスプレイが1枚（screen.isExtended が false）：窓を増やさず、押した窓そのものを全画面のスライドにする（下の present）
+     - ディスプレイが2枚あるのに許可しなかった・全画面にできない枠の中：投影画面を普通の別窓で開く
      投影画面の窓と操作画面は BroadcastChannel で互いの有無を伝え合い、操作画面のボタンを「投影を終える」に切り替える */
   const chan = 'BroadcastChannel' in window ? new BroadcastChannel('pv:' + location.pathname) : null;
   let screensInfo = null;
@@ -64,8 +65,63 @@
     for (const ms of [150, 500, 1000]) setTimeout(() => { try { if (!w.closed) w.focus(); } catch {} }, ms);
     return w;
   };
+  /* 1画面の発表：PowerPoint のスライドショーと同じく、「投影」を押した窓そのものを全画面のスライドにする。
+     始めるのは「投影」の1回、送るのは ← →、終えるのは Esc。別の窓も、Enter の押し直しも、手元の小窓も作らない。
+     オンライン会議では、画面全体でもこの窓でも、共有を始めてから「投影」を押せばそのまま映る。
+     1画面で投影画面を別の窓に分けると、全画面の窓は別のスペースへ移るので、会議アプリへ戻るたびに裏へ回って描き直しが止まり、
+     どの窓で何を押すのかも分かりにくくなる。
+     全画面にするのはスライドの入れ物（.bespoke-marp-parent）で、いまのページだけを画面いっぱいに出す。ページ送りは
+     同じ文書の Marp がそのまま行うので、窓どうしの同期が要らない。一覧でも操作画面でも同じ動きにする */
+  const singleScreen = () => window.screen.isExtended === false;
+  const stage = () => document.querySelector('.bespoke-marp-parent');
+  const present = () => {
+    const el = stage();
+    if (!el?.requestFullscreen || !document.fullscreenEnabled) return null;
+    if (!document.getElementById('pv-stage-css')) {
+      /* 全画面にはスライド以外を何も出さない（残り時間も出さない）。
+         マウスの矢印も、2秒動かさなければ消す。動かせばまた出る */
+      const st = document.createElement('style');
+      st.id = 'pv-stage-css';
+      st.textContent = `
+.bespoke-marp-parent:fullscreen{display:block!important;padding:0!important;background:#000!important;overflow:hidden!important;outline:0!important}
+.bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;filter:none!important;box-shadow:none!important;outline:0!important}
+.bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide:not(.bespoke-marp-active){display:none!important}
+.bespoke-marp-parent:fullscreen>:not(svg.bespoke-marp-slide){display:none!important}
+.bespoke-marp-parent:fullscreen.pv-still,.bespoke-marp-parent:fullscreen.pv-still *{cursor:none!important}`;
+      document.head.appendChild(st);
+      let still = 0;
+      const wake = () => {
+        el.classList.remove('pv-still');
+        clearTimeout(still);
+        if (document.fullscreenElement === el) still = setTimeout(() => el.classList.add('pv-still'), 2000);
+      };
+      el.addEventListener('mousemove', wake);
+      document.addEventListener('fullscreenchange', wake);
+    }
+    return el.requestFullscreen();
+  };
+  // 一覧では ↑↓ が段の移動になる。全画面の間は、PowerPoint と同じく ↑↓・PageUp/Down・スペースも1枚ずつの送りにする
+  addEventListener('keydown', (e) => {
+    if (document.fullscreenElement !== stage() || document.body.dataset.bespokeView !== 'overview') return;
+    const k = { ArrowDown: 'ArrowRight', PageDown: 'ArrowRight', ' ': 'ArrowRight', ArrowUp: 'ArrowLeft', PageUp: 'ArrowLeft' }[e.key];
+    if (!k || !e.isTrusted) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: k, code: k, keyCode: k === 'ArrowRight' ? 39 : 37, which: k === 'ArrowRight' ? 39 : 37, bubbles: true }));
+  }, true);
+  // 全画面を終えたら（Esc）、一覧ではいまのページの位置へ戻す
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && document.body.dataset.bespokeView === 'overview') {
+      const a = document.querySelector('.bespoke-marp-parent > svg.bespoke-marp-active');
+      if (a) Element.prototype.scrollIntoView.call(a, { block: 'center' });
+    }
+  });
   const project = async (page, becomePresenter) => {
-    const asked = !screensInfo && 'getScreenDetails' in window;
+    // 1画面：押した窓そのものを全画面にする。全画面はクリックの直後にしか許されないので、何も待たずに最初に呼ぶ
+    if (singleScreen()) {
+      const req = present();
+      if (req) { try { await req; return; } catch {} }
+    }
+    const asked = !singleScreen() && !screensInfo && 'getScreenDetails' in window;
     if (asked) { try { screensInfo = await window.getScreenDetails(); } catch { screensInfo = null; } }
     const other = screensInfo?.screens.find((s) => s !== screensInfo.currentScreen);
     // 許可のダイアログに答えている間にクリックの効力が切れたら、もう一度押してもらう
@@ -123,7 +179,7 @@ body[data-bespoke-view=overview]:has(#pv-ov.pv-framed) .bespoke-marp-parent{padd
     document.body.prepend(bar);
     for (const t of ['keydown', 'keyup', 'keypress']) bar.addEventListener(t, (e) => e.stopPropagation());
     bar.querySelector('.pv-ov-one').addEventListener('click', () => { location.href = pageUrl('presenter', activePage()); });
-    // 一覧で「投影」を押したら、この窓は操作画面になる（ディスプレイが1枚のときも）
+    // 一覧で「投影」を押したら、2画面ではこの窓が操作画面になる。1画面ではこの窓がそのまま全画面のスライドになる
     bar.querySelector('.pv-ov-aud').addEventListener('click', (e) => { e.currentTarget.blur(); project(activePage(), true); });
     /* 探している最中は勝手にスクロールさせない。Marp 標準の一覧は、ページが変わるたび（投影の窓など、同期している
        ほかの窓で変わったときも）そのページへ滑らかにスクロールするので、過去のページを探している途中で引き戻される。
