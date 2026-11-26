@@ -55,10 +55,10 @@
     const geo = scr ? `,left=${scr.availLeft},top=${scr.availTop},width=${scr.availWidth},height=${scr.availHeight}` : ',width=1280,height=760';
     const w = window.open('', 'pv-audience', 'popup' + geo);
     if (!w) return null;
-    let blank = true;
-    try { blank = w.location.href === 'about:blank'; } catch {}
-    if (blank) w.location.href = pageUrl('', page);
-    else if (scr) { try { w.moveTo(scr.availLeft, scr.availTop); w.resizeTo(scr.availWidth, scr.availHeight); } catch {} }
+    /* 開いたままの投影窓が残っていても、押すたびに今の版・今のページ・今の同期キーで開き直す。
+       使い回すと、発表中に資料を差し替えたとき投影窓だけ古い版のまま残り、同じページ番号でも違うスライドが映る */
+    w.location.href = pageUrl('', page);
+    if (scr) { try { w.moveTo(scr.availLeft, scr.availTop); w.resizeTo(scr.availWidth, scr.availHeight); } catch {} }
     // 開いた直後は Chrome が押した側の窓を前面に戻すので、クリックの効力が残っているうちに何度か投影画面の窓を前へ出す
     // （出さないと、次の Enter が操作画面に届いて全画面にならない）
     w.focus();
@@ -381,10 +381,29 @@ button.pv-nav:active{transform:scale(.985)}
 /* ── 配置：上にパネル（2段）、中央に今のページとその左右に送りボタン、下に前後のページの帯。余白を残して詰めない ── */
 body[data-bespoke-view=presenter][data-pv] .bespoke-marp-presenter-container{grid-template:"head head head head head" auto ". navp current navn ." minmax(0,1fr) "strip strip strip strip strip" clamp(96px,12.5vh,150px) "note note note note note" auto / minmax(0,1fr) auto var(--pv-cw,minmax(0,6fr)) auto minmax(0,1fr);column-gap:12px}
 #pv-head{display:grid;grid-template:"time tools" auto "map map" auto / minmax(0,1fr) auto;gap:12px 20px;padding:14px 20px}
+/* 広い画面では上のパネルを1行（残り時間｜進み具合｜一覧・投影・現在時刻）にして、その分スライドを縦に大きくする。
+   2段のままだとノートPCの1画面でスライドが小さくなる。狭い幅は2段・3段のまま */
+@media (min-width:1000px){
+#pv-head{grid-template:"time map tools" auto / auto minmax(0,1fr) auto;align-items:center;gap:0 28px;padding:10px 20px}
+.pv-clock{min-width:118px;gap:3px}
+.pv-remain{font-size:36px}
+#pv-head button.pv-b{padding:10px 18px;min-width:84px}
+.pv-map{gap:5px}
+.pv-wall b{font-size:21px}
+}
 /* 送りボタン：今のページのすぐ左に「前へ」、すぐ右に「次へ」（帯・矢印キーと同じ向き） */
 #pv-nav{display:contents}
 button.pv-nav.pv-prev{grid-area:navp}
 button.pv-nav.pv-next{grid-area:navn}
+/* スマホの縦持ち：残り時間と「一覧・投影・現在時刻」が1行に収まらず重なるので、
+   上のパネルを3段にし、2段目にボタンと現在時刻を幅いっぱいに並べる */
+@media (max-width:620px){
+body[data-bespoke-view=presenter][data-pv] .bespoke-marp-presenter-container{padding:14px 12px;gap:12px}
+#pv-head{grid-template:"time" auto "tools" auto "map" auto / minmax(0,1fr);gap:12px;padding:12px 14px}
+.pv-clock{min-width:0;flex:1}
+.pv-tools{gap:10px}
+#pv-head .pv-tools button.pv-b{flex:1;min-width:0;padding:11px 8px}
+}
 `;
   const style = document.createElement('style');
   style.textContent = css;
@@ -562,7 +581,8 @@ button.pv-nav.pv-next{grid-area:navn}
     const bw = innerW < 700 ? 54 : 84;                                // 細い窓ではボタンを細くして、今のページの幅を残す
     container.style.setProperty('--pv-bw', bw + 'px');
     const byWidth = innerW - (bw * u + colGap * 2) * 2;
-    container.style.setProperty('--pv-cw', Math.max(240, Math.round(Math.min(byHeight, byWidth))) + 'px');
+    // 下限はスマホの縦持ち（幅390）でも横にはみ出さない大きさにする（240 だと送りボタンと合わせて画面の幅を超える）
+    container.style.setProperty('--pv-cw', Math.max(160, Math.round(Math.min(byHeight, byWidth))) + 'px');
     const ss = getComputedStyle(strip);
     const w = strip.clientWidth, h = strip.clientHeight - parseFloat(ss.paddingTop) - parseFloat(ss.paddingBottom);
     if (!w || !h) return;
