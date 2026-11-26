@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import webbrowser
 from pathlib import Path
 from urllib.parse import unquote
@@ -66,6 +67,27 @@ LIGHT = (
     "const go=()=>{if(!moved)document.querySelector('svg.bespoke-marp-active')?.scrollIntoView({block:'center'})};"
     "addEventListener('DOMContentLoaded',()=>setTimeout(go,60))}</script>"
 )
+
+
+def pdf_link(md: Path) -> str:
+    """一覧の帯の「PDFをダウンロード」が使う隠しリンク。原稿と同じ名前の <名前>.pdf があるときだけ作る。
+    PDF は中身のハッシュの名前で present-assets/ へ写す。版ごとに名前が変わるので、見る人のブラウザが古い PDF を使い回さない。
+    保存名は download 属性で元の名前に戻す。PDF が無ければ空（ボタンも出ない）"""
+    pdf = md.with_suffix(".pdf")
+    if not pdf.is_file():
+        return ""
+    name = hashlib.sha256(pdf.read_bytes()).hexdigest()[:16] + ".pdf"
+    out = md.parent / ASSETS_DIR
+    out.mkdir(exist_ok=True)
+    if not (out / name).is_file():
+        shutil.copyfile(pdf, out / name)
+    t = time.localtime(pdf.stat().st_mtime)
+    at = f"{t.tm_mon}/{t.tm_mday}（{'月火水木金土日'[t.tm_wday]}）{t.tm_hour}:{t.tm_min:02d}"
+    mb = f"{pdf.stat().st_size / 1e6:.1f}MB"
+    return (
+        f'<a id="pv-pdf" href="{ASSETS_DIR}/{name}" download="{html_mod.escape(pdf.name)}"'
+        f' data-at="{at}" data-size="{mb}" hidden></a>'
+    )
 
 
 def externalize(html: str, base: Path) -> tuple[str, list[str]]:
@@ -213,7 +235,8 @@ def main() -> int:
     js = (HERE / "presenter-view.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
     parts_json = json.dumps(parts, ensure_ascii=False).replace("</", "<\\/")
     tag = (
-        f'<script id="presenter-view">document.body.dataset.pvMinutes="{a.minutes}";'
+        pdf_link(md)
+        + f'<script id="presenter-view">document.body.dataset.pvMinutes="{a.minutes}";'
         f"document.body.dataset.pvParts={json.dumps(parts_json, ensure_ascii=False)};"
         f"document.body.dataset.pvChapterClass={json.dumps(a.chapter_class)};\n{js}</script>"
     )

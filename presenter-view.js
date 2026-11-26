@@ -162,10 +162,12 @@ body[data-bespoke-view=overview]:has(#pv-ov) .bespoke-marp-parent{padding-top:10
 #pv-ov button.ghost{background:#fff;color:#14262f;font-weight:600;box-shadow:inset 0 0 0 1.5px rgba(20,50,70,.16)}
 #pv-ov button:active{transform:scale(.97)}
 #pv-ov button:focus-visible{outline:2px solid #0aa5c9;outline-offset:2px}
+#pv-ov a.pv-ov-dl{all:unset;box-sizing:border-box;cursor:pointer;white-space:nowrap;text-align:center;border-radius:12px;padding:11px 16px;font-size:15px;font-weight:600;color:#14262f;background:#fff;box-shadow:inset 0 0 0 1.5px rgba(20,50,70,.16)}
+#pv-ov a.pv-ov-dl:focus-visible{outline:2px solid #0aa5c9;outline-offset:2px}
 @media (max-width:900px){body[data-bespoke-view=overview] #pv-ov{padding:10px 20px}}
 body[data-bespoke-view=overview] #pv-ov.pv-framed{min-height:58px;padding:8px 76px 9px}
 body[data-bespoke-view=overview]:has(#pv-ov.pv-framed) .bespoke-marp-parent{padding-top:94px}
-@media (max-width:560px){body[data-bespoke-view=overview] #pv-ov{padding:10px 16px}body[data-bespoke-view=overview] #pv-ov.pv-framed{padding-left:64px;padding-right:64px}#pv-ov .pv-ov-title{display:none}#pv-ov .pv-ov-btns{flex:1}#pv-ov button{flex:1}}`;
+@media (max-width:560px){body[data-bespoke-view=overview] #pv-ov{padding:10px 16px}body[data-bespoke-view=overview] #pv-ov.pv-framed{padding-left:64px;padding-right:64px}#pv-ov .pv-ov-title{display:none}#pv-ov .pv-ov-btns{flex:1}#pv-ov button,#pv-ov a.pv-ov-dl{flex:1;min-width:0;padding-left:8px;padding-right:8px}#pv-ov .pv-dl-pre{display:none}}`;
     document.head.appendChild(st);
     const bar = document.createElement('header');
     bar.id = 'pv-ov';
@@ -177,6 +179,19 @@ body[data-bespoke-view=overview]:has(#pv-ov.pv-framed) .bespoke-marp-parent{padd
     document.querySelectorAll('.bespoke-marp-overview-header:not(#pv-ov)').forEach((n) => n.remove());
     if (window.parent !== window) bar.classList.add('pv-framed');
     document.body.prepend(bar);
+    /* 原稿の隣に PDF があるときだけ、帯の右端に「PDFをダウンロード」を出す（隠しリンクは present.py の pdf_link）。
+       発表を聞いた人へ URL を渡せば、資料もそこから持ち帰れる。スマホでは3つが1行に収まるよう「PDFを」を省く */
+    const pdf = document.getElementById('pv-pdf');
+    if (pdf) {
+      const dl = document.createElement('a');
+      dl.className = 'pv-ov-dl';
+      dl.href = pdf.getAttribute('href');
+      dl.download = pdf.getAttribute('download') || '';
+      dl.innerHTML = '<span class="pv-dl-pre">PDFを</span>ダウンロード';
+      dl.title = `${pdf.dataset.at} の版・${pdf.dataset.size}`;
+      dl.addEventListener('click', () => toast(`${pdf.dataset.at} の版の PDF（${pdf.dataset.size}）をダウンロードしています`, 4000));
+      bar.querySelector('.pv-ov-btns').appendChild(dl);
+    }
     for (const t of ['keydown', 'keyup', 'keypress']) bar.addEventListener(t, (e) => e.stopPropagation());
     bar.querySelector('.pv-ov-one').addEventListener('click', () => { location.href = pageUrl('presenter', activePage()); });
     // 一覧で「投影」を押したら、2画面ではこの窓が操作画面になる。1画面ではこの窓がそのまま全画面のスライドになる
