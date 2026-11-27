@@ -85,10 +85,24 @@
       st.textContent = `
 .bespoke-marp-parent:fullscreen{display:block!important;padding:0!important;background:#000!important;overflow:hidden!important;outline:0!important}
 .bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;margin:0!important;padding:0!important;filter:none!important;box-shadow:none!important;outline:0!important}
-.bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide:not(.bespoke-marp-active){display:none!important}
+.bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide:not(.bespoke-marp-active):not(.pv-near){display:none!important}
+.bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide.bespoke-marp-active{z-index:2!important;background:#000!important;will-change:transform}
+.bespoke-marp-parent:fullscreen>svg.bespoke-marp-slide.pv-near:not(.bespoke-marp-active){display:block!important;content-visibility:visible!important;opacity:1!important;z-index:1!important;background:#000!important;will-change:transform;pointer-events:none!important}
 .bespoke-marp-parent:fullscreen>:not(svg.bespoke-marp-slide){display:none!important}
 .bespoke-marp-parent:fullscreen.pv-still,.bespoke-marp-parent:fullscreen.pv-still *{cursor:none!important}`;
       document.head.appendChild(st);
+      /* 前後のページは、いまのページの真後ろで描き終えた状態にしておく。
+         映していないページを display:none にすると、送るたびに写真やぼかしを全画面の解像度で塗り直すことになる。
+         4K の画面や、ほかのアプリが同時に描画を使っているときは、その塗り直しで切り替わりが数秒遅れる。
+         いまのページと前後のページはそれぞれ別の層（will-change）にしてあるので、送ったときは重なりの順を入れ替えるだけで済む */
+      const slides = [...el.querySelectorAll(':scope > svg.bespoke-marp-slide')];
+      const near = () => {
+        const on = document.fullscreenElement === el;
+        const cur = slides.findIndex((s) => s.classList.contains('bespoke-marp-active'));
+        slides.forEach((s, i) => s.classList.toggle('pv-near', on && cur >= 0 && Math.abs(i - cur) === 1));
+      };
+      for (const s of slides) new MutationObserver(near).observe(s, { attributes: true, attributeFilter: ['class'] });
+      document.addEventListener('fullscreenchange', near);
       let still = 0;
       const wake = () => {
         el.classList.remove('pv-still');
